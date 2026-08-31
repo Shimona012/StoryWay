@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>My Little Book</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Lato:wght@300;400&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream: #F5F0DC;
+    --cream-dark: #EDE7C8;
+    --cream-shadow: #D9D0A8;
+    --ink: #2C2416;
+    --ink-soft: #6B5E3E;
+    --accent: #8B6914;
+    --page-bg: #FBF7E8;
+    --spine: #C8B882;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--cream);
+    font-family: 'Lato', sans-serif;
+    color: var(--ink);
+  }
+
+  /* ─── PASSWORD SCREEN ─── */
+  #lock-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--cream);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    gap: 28px;
+    padding: 24px;
+  }
+
+  #lock-screen h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(1.6rem, 5vw, 2.8rem);
+    color: var(--ink);
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+
+  #lock-screen p {
+    color: var(--ink-soft);
+    font-size: 0.95rem;
+    letter-spacing: 0.04em;
+  }
+
+  .lock-icon {
+    font-size: 3rem;
+    line-height: 1;
+  }
+
+  .pin-row {
+    display: flex;
+    gap: 14px;
+  }
+
+  .pin-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    background: transparent;
+    transition: background 0.2s;
+  }
+
+  .pin-dot.filled { background: var(--accent); }
+
+  .keypad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    width: min(280px, 90vw);
+  }
+
+  .key {
+    background: var(--cream-dark);
+    border: 1.5px solid var(--cream-shadow);
+    border-radius: 10px;
+    padding: 18px 0;
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .key:active { background: var(--cream-shadow); transform: scale(0.95); }
+  .key.wide { grid-column: span 2; }
+
+  #pin-error {
+    color: #9B3A2A;
+    font-size: 0.85rem;
+    min-height: 1.2em;
+    text-align: center;
+    letter-spacing: 0.03em;
+  }
+
+  /* ─── MAIN STAGE ─── */
+  #stage {
+    display: none;
+    min-height: 100vh;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 16px 60px;
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  #stage.visible { display: flex; }
+
+  /* ─── BOOK WRAPPER ─── */
+  .book-scene {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(10px, 3vw, 28px);
+    width: 100%;
+  }
+
+  /* ─── ARROW BUTTONS ─── */
+  .arrow-btn {
+    background: none;
+    border: 2px solid var(--accent);
+    color: var(--accent);
+    border-radius: 50%;
+    width: clamp(40px, 8vw, 54px);
+    height: clamp(40px, 8vw, 54px);
+    font-size: clamp(1rem, 3vw, 1.5rem);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.2s, color 0.2s, opacity 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .arrow-btn:hover { background: var(--accent); color: var(--cream); }
+  .arrow-btn:disabled { opacity: 0.2; cursor: default; }
+  .arrow-btn:disabled:hover { background: none; color: var(--accent); }
+
+  /* ─── BOOK ─── */
+  .book {
+    width: min(360px, 85vw);
+    position: relative;
+    user-select: none;
+  }
+
+  /* page container  perspective for 3d flip */
+  .page-wrap {
+    position: relative;
+    width: 100%;
+    perspective: 1200px;
+  }
+
+  /* each page card */
+  .page-card {
+    width: 100%;
+    background: var(--page-bg);
+    border-radius: 4px 16px 16px 4px;
+    border: 1.5px solid var(--cream-shadow);
+    box-shadow:
+      -4px 0 0 0 var(--spine),
+      4px 6px 18px rgba(0,0,0,0.12),
+      2px 2px 6px rgba(0,0,0,0.06);
+    min-height: clamp(340px, 60vw, 480px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s;
+    transform-origin: left center;
+    position: absolute;
+    top: 0; left: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: rotateY(-90deg);
+  }
+
+  .page-card.active {
+    position: relative;
+    opacity: 1;
+    pointer-events: auto;
+    transform: rotateY(0deg);
+  }
+
+  .page-card.exit-left {
+    opacity: 0;
+    transform: rotateY(90deg);
+    pointer-events: none;
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+  }
+
+  /* page number strip at bottom */
+  .page-num {
+    margin-top: auto;
+    padding: 8px 16px;
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+    text-align: center;
+    letter-spacing: 0.08em;
+    border-top: 1px solid var(--cream-shadow);
+  }
+
+  /* ─── COVER PAGE ─── */
+  .cover-face {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(24px, 6vw, 48px) clamp(16px, 5vw, 36px);
+    gap: 16px;
+    background: linear-gradient(160deg, #F9F5E0 0%, #EDE7C8 100%);
+  }
+
+  .cover-deco {
+    width: 54px;
+    height: 3px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  .cover-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(1.5rem, 5vw, 2.2rem);
+    color: var(--ink);
+    text-align: center;
+    line-height: 1.25;
+  }
+
+  .cover-sub {
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+    letter-spacing: 0.12em;
+    text-align: center;
+  }
+
+  .cover-hint {
+    margin-top: 24px;
+    font-size: 0.78rem;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+
+  /* ─── INNER PAGES ─── */
+  .inner-page {
+    flex: 1;
+    padding: clamp(18px, 5vw, 32px) clamp(16px, 4vw, 28px) 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .page-heading {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(1.1rem, 3.5vw, 1.5rem);
+    color: var(--ink);
+    border-bottom: 1.5px solid var(--cream-shadow);
+    padding-bottom: 8px;
+  }
+
+  .page-body {
+    font-size: clamp(0.78rem, 2.05vw, 0.9rem);
+    line-height: 1.62;
+    color: var(--ink-soft);
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+
+  .page-body p { margin-bottom: 0.7em; }
+  .page-body p:last-child { margin-bottom: 0; }
+  .story-emphasis { font-family: 'Playfair Display', serif; font-style: italic; color: var(--ink); }
+
+  /* ─── BACK COVER ─── */
+  .back-cover {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(24px, 6vw, 48px) clamp(16px, 5vw, 36px);
+    gap: 14px;
+    background: linear-gradient(160deg, #EDE7C8 0%, #E0D8A8 100%);
+    text-align: center;
+  }
+
+  .back-cover-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(1.1rem, 3.5vw, 1.4rem);
+    color: var(--ink);
+  }
+
+  .back-cover-body {
+    font-size: 0.85rem;
+    line-height: 1.7;
+    color: var(--ink-soft);
+    max-width: 26ch;
+  }
+
+  /* ─── COUNTER BELOW BOOK ─── */
+  .page-counter {
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    letter-spacing: 0.08em;
+  }
+
+  /* ─── RESPONSIVE TWEAKS ─── */
+  @media (max-width: 420px) {
+    .book-scene { gap: 8px; }
+    .arrow-btn { width: 38px; height: 38px; font-size: 1rem; }
+  }
+
+  .page-body em { font-family: "Playfair Display", serif; color: var(--ink); }
+  .story-star { text-align:center; color:var(--accent); font-size:1rem; letter-spacing:.55em; margin:2px 0; }
+  .story-pause { font-family:"Playfair Display",serif; font-style:italic; color:var(--ink); text-align:center; line-height:1.9; margin:6px 0; }
+
+  .page-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .refresh-btn {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--cream-shadow);
+    border-radius: 50%;
+    background: var(--cream-dark);
+    color: var(--ink-soft);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s, background 0.2s;
+  }
+
+  .refresh-btn:hover {
+    background: var(--cream-shadow);
+    transform: rotate(90deg);
+  }
+
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ LOCK SCREEN ═══════════════════════════════ -->
+<div id="lock-screen">
+  <div class="lock-icon">🔒</div>
+  <p>A little story, kept private</p>
+
+  <div class="pin-row" id="pin-display">
+    <div class="pin-dot" id="d0"></div>
+    <div class="pin-dot" id="d1"></div>
+    <div class="pin-dot" id="d2"></div>
+    <div class="pin-dot" id="d3"></div>
+  </div>
+
+  <div id="pin-error"></div>
+
+  <div class="keypad" id="keypad">
+    <button class="key" data-k="1">1</button>
+    <button class="key" data-k="2">2</button>
+    <button class="key" data-k="3">3</button>
+    <button class="key" data-k="4">4</button>
+    <button class="key" data-k="5">5</button>
+    <button class="key" data-k="6">6</button>
+    <button class="key" data-k="7">7</button>
+    <button class="key" data-k="8">8</button>
+    <button class="key" data-k="9">9</button>
+    <button class="key" data-k="del">⌫</button>
+    <button class="key" data-k="0">0</button>
+    <!-- empty slot -->
+    <div></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ MAIN STAGE ═══════════════════════════════ -->
+<div id="stage">
+
+  <div class="book-scene">
+
+    <!-- LEFT ARROW -->
+    <button class="arrow-btn" id="btn-prev" disabled aria-label="Previous page">&#8592;</button>
+
+    <!-- BOOK -->
+    <div class="book">
+      <div class="page-wrap" id="page-wrap">
+
+        <!-- ════ PAGE 0  FRONT COVER ════ -->
+        <div class="page-card active" data-page="0">
+          <div class="cover-face">
+            <div class="cover-deco"></div>
+            <div class="cover-title">The Guy Who Sold Himself</div>
+            <div class="cover-sub">a story about a boy who ran</div>
+            <div class="cover-deco"></div>
+            <div class="cover-hint">flip to open &nbsp;→</div>
+          </div>
+          <div class="page-num">cover</div>
+        </div>
+
+        <!-- ════ PAGE 1 ════ -->
+        <div class="page-card" data-page="1">
+          <div class="inner-page">
+            <div class="page-heading">Page One</div>
+            <div class="page-body">There was this guy.<br><br>Built a little lean, somewhere between short and tall.<br>He liked throwing rocks into ponds,<br>and staring at the stars in the beyond.<br><br>
+<br>He was ordinary.<br>At least, that’s what he thought.</div>
+          </div>
+          <div class="page-num">1</div>
+        </div>
+
+        <!-- ════ PAGE 2 ════ -->
+        <div class="page-card" data-page="2">
+          <div class="inner-page">
+            <div class="page-heading">Page Two</div>
+            
+            <div class="page-body">One day, on his way to a shop,<br>he found a little dog.<br><br>He picked it up, hugged it, played with it,<br>as if they had been cut from the same cloth.<br><br>For a moment,<br>he forgot about everything else.</div>
+          </div>
+          <div class="page-num">2</div>
+        </div>
+
+        <!-- ════ PAGE 3 ════ -->
+        <div class="page-card" data-page="3">
+          <div class="inner-page">
+            <div class="page-heading">Page Three</div>
+            <div class="page-body">The next day, he went out into the world.<br><br>He made himself known.<br>He led conversations, included people,<br>made them laugh.<br><br>Some of them secretly thought of him as a hero.<br><br>He was clueless about that.<br>He didn’t think heroes could be people like him.</div>
+          </div>
+          <div class="page-num">3</div>
+        </div>
+
+        <!-- ════ PAGE 4 ════ -->
+        <div class="page-card" data-page="4">
+          <div class="inner-page">
+            <div class="page-heading">Page Four</div>
+            
+            <div class="page-body">Then he met a guy who was panicking,<br>desperately looking for some stationery.<br><br>So, of course, he helped.<br><br>There wasn’t really a choice.<br><br>He had to be useful.<br><br>He had an image to uphold.<br>He had to be good.</div>
+          </div>
+          <div class="page-num">4</div>
+        </div>
+
+        <!-- ════ PAGE 5 ════ -->
+        <div class="page-card" data-page="5">
+          <div class="inner-page">
+            <div class="page-heading">Page Five</div>
+            <div class="page-body">Then one day,<br>a girl caught his eye.<br><br>She became the reason for his smile.<br><br>He got closer.<br>She came closer too.<br><br>And for once,<br>he let himself be human.<br><br>So...<br>he.......<br>ran.</div>
+          </div>
+          <div class="page-num">5</div>
+        </div>
+
+        <!-- ════ PAGE 6 ════ -->
+        <div class="page-card" data-page="6">
+          <div class="inner-page">
+            <div class="page-heading">Page Six</div>
+            
+            <div class="page-body">Oh, he ran.<br><br>And ran.<br><br>Somewhere along the way,<br>he built himself a little bubble<br>out of self hatred.<br><br>No one could hate him more than he hated himself.<br><br>After all,<br>he thought he was a dread.<br>A burden.<br>A mistake wearing the shape of a person.</div>
+          </div>
+          <div class="page-num">6</div>
+        </div>
+
+        <!-- ════ PAGE 7 ════ -->
+        <div class="page-card" data-page="7">
+          <div class="inner-page">
+            <div class="page-heading">Page Seven</div>
+            <div class="page-body">Then he met another girl.<br><br>A little shorter than him,<br>bubbly, bright,<br>but he noticed the moments when her brightness faltered.<br><br>“Her brightness covers my darkness,”<br>he thought.<br><br>But the girl saw something else.<br><br>When she looked back at him,<br>all she saw were stars.</div>
+          </div>
+          <div class="page-num">7</div>
+        </div>
+
+        <!-- ════ PAGE 8 ════ -->
+        <div class="page-card" data-page="8">
+          <div class="inner-page">
+            <div class="page-heading">Page Eight</div>
+            
+            <div class="page-body">And the girl he had run from<br>chased him back.<br><br>He blamed himself for that too.<br><br>He learned his lessons.<br><br>But sometimes,<br>we carry old mistakes as though they were still happening.<br><br>We forget that learning something<br>means we are no longer the same person<br>who needed to learn it.</div>
+          </div>
+          <div class="page-num">8</div>
+        </div>
+
+        <!-- ════ PAGE 9 ════ -->
+        <div class="page-card" data-page="9">
+          <div class="inner-page">
+            <div class="page-heading">Page Nine</div>
+            <div class="page-body">Once, he came to chase after another.<br><br>But when the time came,<br>he chose to let her go for another.<br><br>Maybe it hurt.<br>Maybe it was selfish in some ways.<br>Maybe it was selfless in others.<br><br>People can be many things at once.</div>
+          </div>
+          <div class="page-num">9</div>
+        </div>
+
+        <!-- ════ PAGE 10 ════ -->
+        <div class="page-card" data-page="10">
+          <div class="inner-page">
+            <div class="page-heading">Page Ten</div>
+            
+            <div class="page-body">He was human.<br><br>A person who held too much<br>and carried it for too long.<br><br>A character you’d read about<br>and understand.<br><br>A character you’d have empathy for.<br>Maybe even pride.<br><br>Not because he had always made the right choices,<br>but because he kept carrying what he had done<br>and still tried to become someone better.<br><br>Someone you’d wish would stop lamenting<br>and simply enjoy being alive.</div>
+          </div>
+          <div class="page-num">10</div>
+        </div>
+
+        <!-- ════ PAGE 11 ════ -->
+        <div class="page-card" data-page="11">
+          <div class="inner-page">
+            <div class="page-heading">Page Eleven</div>
+            
+            <div class="page-body">But blame doesn’t always vanish.<br><br>Sometimes we seal it away<br>and call it justice,or penance or deserved punishment.<br><br>We look back at the person we were<br>with everything we know now<br>and wonder how they could have chosen differently.<br><br>But the past had choices<br>we cannot imagine again.<br><br>Different circumstances.<br>Different fears.<br>Different versions of ourselves.<br><br>So here’s a question:<br><br>If that boy were your friend,<br>would you blame him the same way?<br><br>Would you call him selfish<br>for every time he was afraid?<br><br>Would you hate him<br>for every time he didn’t know what to do?<br><br>Or would you tell him<br>that he was only trying to find his way?</div>
+          </div>
+          <div class="page-num">11</div>
+        </div>
+
+        <!-- ════ PAGE 12 ════ -->
+        <div class="page-card" data-page="12">
+          <div class="inner-page">
+            <div class="page-heading">Page Twelve</div>
+            <div class="page-body">The boy was a runner.<br><br>He ran true and true.<br><br>From people.<br>From love.<br>From guilt.<br><br>Mostly,<br>from himself.<br>
+<br>But the boy was human.<br><br>And the boy is you.<br><br>So tell me...<br><br>if you could meet him now,<br>knowing everything he had carried,<br><br>would you really look him in the eyes<br>and tell him<br><br>that he was selfish too?<br><br>Or would you finally let him rest?</div>
+          </div>
+          <div class="page-num">12</div>
+        </div>
+
+        <!-- ════ BACK COVER ════ -->
+        <div class="page-card" data-page="13">
+          <div class="back-cover">
+            <div class="cover-deco"></div>
+            <div class="back-cover-title">The End</div>
+            <div class="back-cover-body">Maybe he was never selfish. Maybe he was just scared.</div>
+            <div class="cover-deco"></div>
+            <div class="back-cover-body">But at the end of the day, its his choice to make.<br>All I can do is, hope he finds his way.</div>
+          </div>
+          <div class="page-num">back cover</div>
+        </div>
+
+      </div><!-- /page-wrap -->
+    </div><!-- /book -->
+
+    <!-- RIGHT ARROW -->
+    <button class="arrow-btn" id="btn-next" aria-label="Next page">&#8594;</button>
+
+  </div><!-- /book-scene -->
+
+  <div class="page-controls">
+    <div class="page-counter" id="page-counter">cover</div>
+    <button class="refresh-btn" id="refresh-btn" aria-label="Jump to cover" title="Jump to cover">↻</button>
+  </div>
+
+</div><!-- /stage -->
+
+<script>
+  /* ── PIN LOCK ── */
+  const CORRECT = '3141';
+  let entered = '';
+
+  const lockScreen = document.getElementById('lock-screen');
+  const stage      = document.getElementById('stage');
+  const pinError   = document.getElementById('pin-error');
+  const dots       = [0,1,2,3].map(i => document.getElementById('d'+i));
+
+  function updateDots() {
+    dots.forEach((d,i) => d.classList.toggle('filled', i < entered.length));
+  }
+
+  document.getElementById('keypad').addEventListener('click', e => {
+    const btn = e.target.closest('.key');
+    if (!btn) return;
+    const k = btn.dataset.k;
+
+    if (k === 'del') {
+      entered = entered.slice(0,-1);
+      pinError.textContent = '';
+    } else if (entered.length < 4) {
+      entered += k;
+    }
+
+    updateDots();
+
+    if (entered.length === 4) {
+      if (entered === CORRECT) {
+        lockScreen.style.display = 'none';
+        stage.classList.add('visible');
+      } else {
+        pinError.textContent = 'Wrong code  try again';
+        dots.forEach(d => { d.style.background='#9B3A2A'; d.style.borderColor='#9B3A2A'; });
+        setTimeout(() => {
+          entered = '';
+          updateDots();
+          dots.forEach(d => { d.style.background=''; d.style.borderColor=''; });
+          pinError.textContent = '';
+        }, 700);
+      }
+    }
+  });
+
+  /* ── FLIPBOOK ── */
+  const pages   = Array.from(document.querySelectorAll('.page-card'));
+  const total   = pages.length;
+  const btnPrev = document.getElementById('btn-prev');
+  const btnNext = document.getElementById('btn-next');
+  const counter = document.getElementById('page-counter');
+  let current   = 0;
+  let animating  = false;
+
+  function label(i) {
+    if (i === 0)         return 'cover';
+    if (i === total - 1) return 'back cover';
+    return `page ${i} of ${total - 2}`;
+  }
+
+  function goTo(next) {
+    if (animating || next < 0 || next >= total) return;
+    animating = true;
+
+    const old = pages[current];
+    const nw  = pages[next];
+
+    // exit old
+    old.classList.remove('active');
+    old.classList.add('exit-left');
+
+    // enter new (start hidden)
+    nw.style.position = 'absolute';
+    nw.style.opacity  = '0';
+    nw.style.transform = 'rotateY(-90deg)';
+    nw.style.pointerEvents = 'none';
+    nw.style.top = '0'; nw.style.left = '0'; nw.style.width = '100%';
+
+    // force reflow
+    void nw.offsetWidth;
+
+    nw.style.transition = 'transform 0.45s cubic-bezier(0.4,0,0.2,1), opacity 0.3s';
+    nw.style.opacity = '1';
+    nw.style.transform = 'rotateY(0deg)';
+
+    current = next;
+
+    setTimeout(() => {
+      old.classList.remove('exit-left');
+      old.style.cssText = '';
+
+      nw.classList.add('active');
+      nw.style.cssText = '';
+
+      btnPrev.disabled = current === 0;
+      btnNext.disabled = current === total - 1;
+      counter.textContent = label(current);
+      animating = false;
+    }, 480);
+  }
+
+  btnPrev.addEventListener('click', () => goTo(current - 1));
+
+  document.getElementById('refresh-btn').addEventListener('click', () => {
+    if (current === 0) return;
+    goTo(0);
+  });
+  btnNext.addEventListener('click', () => goTo(current + 1));
+
+  // swipe support
+  let touchX = null;
+  document.getElementById('page-wrap').addEventListener('touchstart', e => { touchX = e.touches[0].clientX; }, {passive:true});
+  document.getElementById('page-wrap').addEventListener('touchend', e => {
+    if (touchX === null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 40) dx < 0 ? goTo(current+1) : goTo(current-1);
+    touchX = null;
+  }, {passive:true});
+
+  // init counter
+  counter.textContent = label(0);
+</script>
+</body>
+</html>
